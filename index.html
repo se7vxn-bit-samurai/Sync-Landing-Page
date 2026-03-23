@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MirrorFlow Sync | Schedule Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --font-body:'DM Sans',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --void:#050810;--deep:#070A12;--surface:#0a0e1a;
+  --accent:#7AB4FF;--accent-dim:rgba(122,180,255,.25);--accent-ghost:rgba(122,180,255,.06);
+  --accent-glow:0 0 40px rgba(122,180,255,.18);--accent-glow-strong:0 0 60px rgba(122,180,255,.25);
+  --purple:#b98bff;--green:#34D399;--amber:#FBBF24;--rose:#F472B6;
+  --text:#f0f2f8;--text-2:#8a94aa;--text-3:#3e4660;
+  --border:rgba(255,255,255,.08);--border-accent:rgba(122,180,255,.2);
+  --card:rgba(255,255,255,.04);
+  --dot:rgba(255,255,255,.06);
+  --ease-out:cubic-bezier(0.16,1,0.3,1);--ease-spring:cubic-bezier(0.34,1.56,0.64,1);
+  --max-w:1100px;
+}
+html{scroll-behavior:smooth;scrollbar-width:thin;scrollbar-color:var(--accent) var(--deep)}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--deep)}::-webkit-scrollbar-thumb{background:var(--accent);border-radius:2px}
+body{font-family:var(--font-body);background:var(--void);color:var(--text);line-height:1.6;overflow-x:hidden;cursor:none}
+
+/* CURSOR */
+#cur-d{position:fixed;width:6px;height:6px;background:var(--accent);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);mix-blend-mode:screen;transition:transform .1s}
+#cur-r{position:fixed;width:32px;height:32px;border:1px solid var(--accent-dim);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:width .3s var(--ease-spring),height .3s var(--ease-spring),border-color .2s}
+body:has(a:hover,button:hover,[role="button"]:hover) #cur-r{width:52px;height:52px;border-color:var(--accent);opacity:.7}
+@media(hover:none){body{cursor:auto}#cur-d,#cur-r{display:none}}
+
+/* BG — dot grid + animated radial glows */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.45;
+  background-image:radial-gradient(circle at 1px 1px,var(--dot) 0 1px,transparent 1.2px);background-size:28px 28px}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(900px 600px at 15% 10%,rgba(122,180,255,.12),transparent 50%),radial-gradient(700px 500px at 85% 20%,rgba(185,139,255,.07),transparent 50%),radial-gradient(600px 400px at 50% 85%,rgba(122,180,255,.06),transparent 50%);
+  animation:bgDrift 18s ease-in-out infinite alternate}
+@keyframes bgDrift{0%{opacity:.8;transform:translate(0,0)}100%{opacity:1;transform:translate(15px,-10px)}}
+
+/* Animated scan line */
+.scan-line{position:fixed;top:0;left:0;right:0;height:1px;z-index:0;pointer-events:none;
+  background:linear-gradient(90deg,transparent 20%,var(--accent-dim) 50%,transparent 80%);
+  animation:scanDown 8s linear infinite;opacity:.3}
+@keyframes scanDown{0%{top:0}100%{top:100vh}}
+
+/* Grid crosshairs */
+.grid-x{position:fixed;top:50%;left:0;right:0;height:1px;z-index:0;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(122,180,255,.04) 30%,rgba(122,180,255,.04) 70%,transparent)}
+.grid-y{position:fixed;top:0;bottom:0;left:50%;width:1px;z-index:0;pointer-events:none;background:linear-gradient(to bottom,transparent,rgba(122,180,255,.04) 20%,rgba(122,180,255,.04) 80%,transparent)}
+
+/* NAV */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:.8rem 2rem;
+  backdrop-filter:blur(16px) saturate(120%);background:rgba(5,8,16,.75);border-bottom:1px solid var(--border)}
+.nav-left{display:flex;align-items:center;gap:1.5rem}
+.nav-back{display:inline-flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.65rem;color:var(--text-3);text-decoration:none;text-transform:uppercase;letter-spacing:.08em;transition:color .2s;cursor:none}
+.nav-back:hover{color:var(--accent)}
+.nav-back svg{width:14px;height:14px}
+.nav-brand{display:flex;align-items:center;gap:.5rem;font-size:.95rem;font-weight:700;letter-spacing:-.01em}
+.nav-brand svg{width:18px;height:18px;color:var(--accent)}
+.nav-brand span{color:var(--accent)}
+.nav-pill{font-family:var(--font-mono);font-size:.55rem;padding:.15rem .45rem;border-radius:4px;background:var(--accent-ghost);color:var(--accent);border:1px solid var(--border-accent);letter-spacing:.04em}
+.nav-launch{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1.1rem;background:var(--accent);color:var(--void);font-weight:600;font-size:.78rem;border-radius:8px;text-decoration:none;transition:all .2s;cursor:none}
+.nav-launch:hover{transform:translateY(-1px);box-shadow:var(--accent-glow)}
+.nav-launch svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2}
+
+/* HERO */
+.hero{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;padding:7rem 2rem 5rem}
+.hero-inner{max-width:var(--max-w);margin:0 auto;width:100%;display:grid;grid-template-columns:1fr 1.1fr;gap:3rem;align-items:center}
+.hero-tag{font-family:var(--font-mono);font-size:.6rem;text-transform:uppercase;letter-spacing:.2em;color:var(--accent);margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem}
+.hero-tag::before{content:'';width:24px;height:1px;background:var(--accent);animation:tagPulse 2s ease-in-out infinite}
+@keyframes tagPulse{0%,100%{width:24px;opacity:.5}50%{width:40px;opacity:1}}
+.hero-title{font-size:clamp(2rem,4vw,2.8rem);font-weight:700;line-height:1.12;letter-spacing:-.03em;margin-bottom:1.25rem}
+.hero-title em{font-style:normal;background:linear-gradient(135deg,var(--accent),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-sub{font-size:.95rem;color:var(--text-2);line-height:1.7;max-width:440px;margin-bottom:2rem}
+.hero-actions{display:flex;gap:.75rem;flex-wrap:wrap}
+.hero-btn{display:inline-flex;align-items:center;gap:.5rem;padding:.7rem 1.4rem;border-radius:8px;font-weight:600;font-size:.82rem;text-decoration:none;transition:all .25s;cursor:none;border:none}
+.hero-btn.primary{background:var(--accent);color:var(--void)}
+.hero-btn.primary:hover{transform:translateY(-2px);box-shadow:var(--accent-glow-strong)}
+.hero-btn.ghost{background:none;border:1px solid var(--border);color:var(--text-2)}
+.hero-btn.ghost:hover{border-color:var(--accent-dim);color:var(--accent);transform:translateY(-2px)}
+.hero-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2}
+
+/* HERO SCHEDULE GRID — animated */
+.hero-grid{border:1px solid var(--border);border-radius:18px;background:var(--card);backdrop-filter:blur(12px);overflow:hidden;position:relative;transition:all .4s}
+.hero-grid:hover{border-color:var(--border-accent);box-shadow:var(--accent-glow)}
+.hero-grid::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at var(--gx,50%) var(--gy,30%),rgba(122,180,255,.06),transparent 55%);opacity:0;transition:opacity .4s;pointer-events:none}
+.hero-grid:hover::before{opacity:1}
+.hg-bar{display:flex;align-items:center;justify-content:space-between;padding:.65rem 1.1rem;border-bottom:1px solid var(--border)}
+.hg-bar span{font-family:var(--font-mono);font-size:.6rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em}
+.hg-bar .hg-live{display:inline-flex;align-items:center;gap:.35rem;color:var(--green);font-size:.55rem}
+.hg-bar .hg-live::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--green);animation:livePulse 2s ease-in-out infinite}
+@keyframes livePulse{0%,100%{opacity:.4;box-shadow:none}50%{opacity:1;box-shadow:0 0 8px var(--green)}}
+.hg-body{padding:.6rem}
+.hg-week{display:grid;grid-template-columns:52px repeat(7,1fr);gap:3px;margin-bottom:3px}
+.hg-label{font-family:var(--font-mono);font-size:.55rem;color:var(--text-3);display:flex;align-items:center;padding:0 4px}
+.hg-hd{font-family:var(--font-mono);font-size:.48rem;color:var(--text-3);text-align:center;padding:3px 0;text-transform:uppercase;letter-spacing:.06em}
+.hg-cell{aspect-ratio:1.7;border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:.52rem;font-weight:500;transition:all .25s;position:relative;overflow:hidden}
+.hg-cell::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.06),transparent);pointer-events:none}
+.hg-cell.early{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.18)}
+.hg-cell.mid{background:var(--accent-ghost);color:var(--accent);border:1px solid rgba(122,180,255,.14)}
+.hg-cell.late{background:rgba(244,114,182,.08);color:var(--rose);border:1px solid rgba(244,114,182,.14)}
+.hg-cell.off{background:rgba(255,255,255,.015);color:var(--text-3);border:1px solid rgba(255,255,255,.04);font-size:.45rem}
+.hg-cell.wknd{background:rgba(251,191,36,.07);color:var(--amber);border:1px solid rgba(251,191,36,.12)}
+/* Staggered fade-in for cells */
+.hg-cell{animation:cellIn .4s var(--ease-out) both}
+.hg-week:nth-child(2) .hg-cell{animation-delay:.05s}
+.hg-week:nth-child(3) .hg-cell{animation-delay:.1s}
+.hg-week:nth-child(4) .hg-cell{animation-delay:.15s}
+.hg-week:nth-child(5) .hg-cell{animation-delay:.2s}
+.hg-week:nth-child(6) .hg-cell{animation-delay:.25s}
+@keyframes cellIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+.hg-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--border)}
+.hg-stat{text-align:center;padding:.65rem .5rem;border-right:1px solid var(--border);transition:background .2s}
+.hg-stat:last-child{border-right:none}
+.hg-stat:hover{background:rgba(122,180,255,.04)}
+.hg-stat-val{font-family:var(--font-mono);font-size:.9rem;font-weight:600;color:var(--accent)}
+.hg-stat-lbl{font-size:.5rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-top:.1rem}
+
+/* SECTIONS */
+.section{position:relative;z-index:1;max-width:var(--max-w);margin:0 auto;padding:5rem 2rem}
+.section-tag{font-family:var(--font-mono);font-size:.55rem;text-transform:uppercase;letter-spacing:.2em;color:var(--accent);margin-bottom:.5rem}
+.section-title{font-size:clamp(1.3rem,2.5vw,1.7rem);font-weight:700;letter-spacing:-.02em;margin-bottom:.5rem}
+.section-sub{font-size:.88rem;color:var(--text-2);max-width:500px;line-height:1.65;margin-bottom:2.5rem}
+
+/* FEATURE GRID — bento with glow + tilt */
+.feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.feat{position:relative;padding:1.5rem;border:1px solid var(--border);border-radius:14px;background:var(--card);backdrop-filter:blur(8px);transition:all .35s var(--ease-out);overflow:hidden;cursor:none;transform-style:preserve-3d}
+.feat::after{content:'';position:absolute;inset:0;background:radial-gradient(circle at var(--mx,50%) var(--my,50%),rgba(122,180,255,.06),transparent 55%);opacity:0;transition:opacity .3s;pointer-events:none}
+.feat:hover::after{opacity:1}
+.feat::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0;transition:opacity .3s}
+.feat:hover{border-color:var(--border-accent);box-shadow:0 12px 40px rgba(122,180,255,.06),inset 0 1px 0 rgba(122,180,255,.08)}
+.feat:hover::before{opacity:1}
+.feat-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:9px;border:1px solid var(--border);background:var(--accent-ghost);color:var(--accent);margin-bottom:.8rem;transition:all .3s}
+.feat:hover .feat-icon{border-color:var(--accent);box-shadow:0 0 16px rgba(122,180,255,.15)}
+.feat-icon svg{width:16px;height:16px}
+.feat-title{font-size:.85rem;font-weight:600;margin-bottom:.3rem}
+.feat-text{font-size:.75rem;color:var(--text-2);line-height:1.6}
+.feat-chip{display:inline-block;font-family:var(--font-mono);font-size:.5rem;padding:.12rem .4rem;border-radius:4px;background:var(--accent-ghost);color:rgba(122,180,255,.65);border:1px solid rgba(122,180,255,.1);margin-top:.6rem}
+.feat.wide{grid-column:span 2}
+
+/* VIEWS — interactive strip */
+.views-strip{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.view-tag{font-family:var(--font-mono);font-size:.6rem;padding:.4rem .8rem;border-radius:6px;border:1px solid var(--border);color:var(--text-3);cursor:none;transition:all .25s;position:relative;overflow:hidden}
+.view-tag::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(122,180,255,.08),transparent);opacity:0;transition:opacity .2s}
+.view-tag:hover{border-color:var(--border-accent);color:var(--accent);transform:translateY(-1px)}
+.view-tag:hover::before{opacity:1}
+.view-tag.active{background:var(--accent);color:var(--void);border-color:var(--accent);box-shadow:0 0 20px rgba(122,180,255,.2)}
+.view-tag.active::before{opacity:0}
+
+/* WORKFLOW — animated connector */
+.workflow{display:flex;flex-direction:column;gap:0}
+.wf-step{display:grid;grid-template-columns:48px 1fr;gap:1.25rem;padding-bottom:2rem;position:relative;opacity:0;animation:wfIn .6s var(--ease-out) forwards}
+.wf-step:nth-child(1){animation-delay:.1s}
+.wf-step:nth-child(2){animation-delay:.25s}
+.wf-step:nth-child(3){animation-delay:.4s}
+@keyframes wfIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.wf-step:not(:last-child)::before{content:'';position:absolute;left:23px;top:52px;bottom:0;width:1px;background:linear-gradient(to bottom,var(--accent-dim),var(--border))}
+.wf-num{width:48px;height:48px;border-radius:12px;border:1px solid var(--border);background:var(--card);display:grid;place-items:center;font-family:var(--font-mono);font-size:.75rem;font-weight:600;color:var(--accent);flex-shrink:0;position:relative;z-index:1;transition:all .3s}
+.wf-step:hover .wf-num{border-color:var(--accent);box-shadow:var(--accent-glow);background:rgba(122,180,255,.06)}
+.wf-title{font-size:.9rem;font-weight:600;margin-bottom:.25rem}
+.wf-text{font-size:.78rem;color:var(--text-2);line-height:1.6}
+
+/* COVERAGE VIS — animated heatmap strip */
+.cov-strip{display:flex;gap:3px;margin-top:2rem;padding:1.25rem;border:1px solid var(--border);border-radius:14px;background:var(--card);overflow:hidden;position:relative}
+.cov-strip::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,rgba(122,180,255,.04),transparent 50%);pointer-events:none}
+.cov-day{flex:1;height:48px;border-radius:4px;transition:all .3s;cursor:none;position:relative;display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px;font-family:var(--font-mono);font-size:.45rem;color:rgba(255,255,255,.5);animation:covIn .4s var(--ease-out) both}
+.cov-day .cov-fill{position:absolute;bottom:0;left:2px;right:2px;border-radius:3px 3px 2px 2px;transition:height .4s var(--ease-out)}
+.cov-day:hover{transform:translateY(-3px)}
+.cov-day:hover .cov-fill{filter:brightness(1.3)}
+.cov-label{display:flex;justify-content:space-between;margin-top:.5rem;font-family:var(--font-mono);font-size:.5rem;color:var(--text-3)}
+@keyframes covIn{from{opacity:0;transform:scaleY(.5)}to{opacity:1;transform:scaleY(1)}}
+
+/* CTA */
+.cta{position:relative;z-index:1;max-width:var(--max-w);margin:0 auto;padding:5rem 2rem;text-align:center}
+.cta-box{border:1px solid var(--border);border-radius:20px;background:var(--card);backdrop-filter:blur(12px);padding:3.5rem 2rem;position:relative;overflow:hidden}
+.cta-box::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(122,180,255,.08),transparent 50%);pointer-events:none}
+.cta-box::after{content:'';position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,var(--accent-dim),transparent)}
+.cta-title{font-size:clamp(1.2rem,2.5vw,1.6rem);font-weight:700;margin-bottom:.6rem;position:relative}
+.cta-text{font-size:.85rem;color:var(--text-2);max-width:400px;margin:0 auto 2rem;line-height:1.65;position:relative}
+.cta-actions{display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;position:relative}
+
+/* FOOTER */
+.footer{position:relative;z-index:1;border-top:1px solid var(--border);padding:2rem;display:flex;align-items:center;justify-content:space-between;font-size:.7rem;color:var(--text-3);max-width:var(--max-w);margin:0 auto}
+.footer a{color:var(--text-3);text-decoration:none;transition:color .2s;cursor:none}
+.footer a:hover{color:var(--accent)}
+.footer-brand{font-weight:600}
+.footer-brand span{color:var(--accent)}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .hero{padding:6rem 1.25rem 3rem;min-height:auto}
+  .hero-inner{grid-template-columns:1fr;gap:2rem}
+  .feat-grid{grid-template-columns:1fr}
+  .feat.wide{grid-column:span 1}
+  .section{padding:3rem 1.25rem}
+  .nav{padding:.75rem 1.25rem}
+  .cta-box{padding:2rem 1.5rem}
+  .hero-actions{flex-direction:column}
+  .cov-strip{flex-wrap:wrap}
+  .cov-day{min-width:20px}
+}
+@media(hover:none){body,.nav-back,.nav-launch,.hero-btn,.feat,.view-tag,.cov-day,.footer a{cursor:auto}#cur-d,#cur-r{display:none}}
+  </style>
+</head>
+<body>
+
+<div id="cur-d"></div>
+<div id="cur-r"></div>
+<div class="scan-line" aria-hidden="true"></div>
+<div class="grid-x" aria-hidden="true"></div>
+<div class="grid-y" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="nav-left">
+    <a href="https://sel.theguide.club" class="nav-back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Hub
+    </a>
+    <div class="nav-brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      MirrorFlow <span>Sync</span>
+    </div>
+    <span class="nav-pill">v42</span>
+  </div>
+  <div>
+    <a href="https://sync.theguide.club" class="nav-launch">
+      <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      Launch Sync
+    </a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-inner">
+    <div>
+      <p class="hero-tag">Schedule Intelligence</p>
+      <h1 class="hero-title">Schedules that<br><em>make sense.</em></h1>
+      <p class="hero-sub">MirrorFlow Sync turns messy roster exports into clean, navigable schedule dashboards. Upload a spreadsheet, get a full calendar with coverage tracking, anomaly detection, and workforce planning — all offline.</p>
+      <div class="hero-actions">
+        <a href="https://sync.theguide.club" class="hero-btn primary">
+          <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          Launch Sync
+        </a>
+        <button onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})" class="hero-btn ghost">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+          See Features
+        </button>
+      </div>
+    </div>
+    <div class="hero-grid" id="heroGrid">
+      <div class="hg-bar">
+        <span>Claims — March 2026</span>
+        <span class="hg-live">Live</span>
+      </div>
+      <div class="hg-body">
+        <div class="hg-week" style="margin-bottom:4px">
+          <div></div>
+          <div class="hg-hd">Mon</div><div class="hg-hd">Tue</div><div class="hg-hd">Wed</div><div class="hg-hd">Thu</div><div class="hg-hd">Fri</div><div class="hg-hd">Sat</div><div class="hg-hd">Sun</div>
+        </div>
+        <div class="hg-week">
+          <div class="hg-label">Sarah</div>
+          <div class="hg-cell early">08–16</div><div class="hg-cell early">08–16</div><div class="hg-cell mid">10–18</div><div class="hg-cell off">OFF</div><div class="hg-cell early">08–16</div><div class="hg-cell wknd">09–13</div><div class="hg-cell off">OFF</div>
+        </div>
+        <div class="hg-week">
+          <div class="hg-label">James</div>
+          <div class="hg-cell mid">10–18</div><div class="hg-cell mid">10–18</div><div class="hg-cell off">OFF</div><div class="hg-cell early">08–16</div><div class="hg-cell early">08–16</div><div class="hg-cell off">OFF</div><div class="hg-cell off">OFF</div>
+        </div>
+        <div class="hg-week">
+          <div class="hg-label">Priya</div>
+          <div class="hg-cell late">12–20</div><div class="hg-cell off">OFF</div><div class="hg-cell early">08–16</div><div class="hg-cell early">08–16</div><div class="hg-cell late">12–20</div><div class="hg-cell off">OFF</div><div class="hg-cell wknd">09–17</div>
+        </div>
+        <div class="hg-week">
+          <div class="hg-label">Dev</div>
+          <div class="hg-cell off">OFF</div><div class="hg-cell early">08–16</div><div class="hg-cell early">08–16</div><div class="hg-cell mid">10–18</div><div class="hg-cell mid">10–18</div><div class="hg-cell wknd">09–13</div><div class="hg-cell off">OFF</div>
+        </div>
+        <div class="hg-week">
+          <div class="hg-label">Aisha</div>
+          <div class="hg-cell early">08–16</div><div class="hg-cell early">08–16</div><div class="hg-cell early">08–16</div><div class="hg-cell early">08–16</div><div class="hg-cell off">OFF</div><div class="hg-cell off">OFF</div><div class="hg-cell off">OFF</div>
+        </div>
+      </div>
+      <div class="hg-stats">
+        <div class="hg-stat"><div class="hg-stat-val">5</div><div class="hg-stat-lbl">Staff</div></div>
+        <div class="hg-stat"><div class="hg-stat-val">172h</div><div class="hg-stat-lbl">Total</div></div>
+        <div class="hg-stat"><div class="hg-stat-val" style="color:var(--green)">✓</div><div class="hg-stat-lbl">Coverage</div></div>
+        <div class="hg-stat"><div class="hg-stat-val">0</div><div class="hg-stat-lbl">Anomalies</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <p class="section-tag">Features</p>
+  <h2 class="section-title">Everything you need. Nothing you don't.</h2>
+  <p class="section-sub">One HTML file. No backend. No login. No data leaves your machine. Drop in a schedule and start working.</p>
+
+  <div class="feat-grid">
+    <div class="feat wide">
+      <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+      <p class="feat-title">Calendar Dashboard</p>
+      <p class="feat-text">Three-panel layout — interactive calendar on the left, daily roster in the centre, weekly summary on the right. Click any day to drill into shifts, coverage, and notes. Public holidays tracked.</p>
+      <span class="feat-chip">3-panel · click-to-drill</span>
+    </div>
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></div>
+      <p class="feat-title">Smart Import</p>
+      <p class="feat-text">Drag and drop Excel or CSV. The parser detects shift patterns, identifies staff names, and structures everything automatically.</p>
+      <span class="feat-chip">Excel · CSV · drag & drop</span>
+    </div>
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div>
+      <p class="feat-title">Coverage Intelligence</p>
+      <p class="feat-text">Set minimum thresholds per department. Days below are flagged with visual indicators. Real-time tracking across every view.</p>
+      <span class="feat-chip">Min threshold · flagging</span>
+    </div>
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div>
+      <p class="feat-title">Blueprint Editor</p>
+      <p class="feat-text">Define shift pattern templates per week with drag-and-drop reordering. Foundation for forward planning and position confirmation.</p>
+      <span class="feat-chip">Drag & drop · templates</span>
+    </div>
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      <p class="feat-title">Department Tabs</p>
+      <p class="feat-text">Manage multiple departments in one session. Each gets independent schedules, coverage settings, and analytics.</p>
+      <span class="feat-chip">Multi-department</span>
+    </div>
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+      <p class="feat-title">Anomaly Detection</p>
+      <p class="feat-text">Spots excessive hours, back-to-back shifts, insufficient rest, lone working, and coverage gaps — before they become problems.</p>
+      <span class="feat-chip">Auto-detect</span>
+    </div>
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01"/></svg></div>
+      <p class="feat-title">Swap Management</p>
+      <p class="feat-text">Record shift swaps with coverage impact tracking. See how swaps affect daily staffing levels at a glance.</p>
+      <span class="feat-chip">Impact tracking</span>
+    </div>
+    <div class="feat wide">
+      <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></div>
+      <p class="feat-title">Export Suite</p>
+      <p class="feat-text">Polished Excel workbooks with overview sheets, per-month breakdowns, and styled formatting. Image export for visual snapshots of calendars and coverage.</p>
+      <span class="feat-chip">Excel · image · styled</span>
+    </div>
+  </div>
+
+  <!-- Coverage visualisation -->
+  <div class="cov-strip" id="covStrip"></div>
+  <div class="cov-label"><span>Mon 3</span><span>← 28 days coverage →</span><span>Sun 30</span></div>
+</section>
+
+<!-- VIEWS -->
+<section class="section">
+  <p class="section-tag">Views</p>
+  <h2 class="section-title">Eight ways to see your schedule.</h2>
+  <p class="section-sub">Same data, different angles. Switch between them with one click.</p>
+
+  <div class="views-strip" id="viewStrip">
+    <span class="view-tag active">Calendar</span>
+    <span class="view-tag">Table</span>
+    <span class="view-tag">Cards</span>
+    <span class="view-tag">Analytics</span>
+    <span class="view-tag">Planner</span>
+    <span class="view-tag">Summary</span>
+    <span class="view-tag">Intel</span>
+    <span class="view-tag">Raw</span>
+  </div>
+
+  <div class="feat-grid">
+    <div class="feat">
+      <p class="feat-title">Calendar</p>
+      <p class="feat-text">Three-panel dashboard. Calendar grid with coverage colouring, daily roster with shift details, and summary panel with week stats and notes.</p>
+    </div>
+    <div class="feat">
+      <p class="feat-title">Planner</p>
+      <p class="feat-text">Multi-month forward planning with blueprint-driven generation, position confirmation, coverage drift, leave management, and cell overrides.</p>
+    </div>
+    <div class="feat">
+      <p class="feat-title">Analytics</p>
+      <p class="feat-text">Roster and coverage analysis modes. Working day trends, hours distributions, weekend patterns, and anomaly summaries across the full period.</p>
+    </div>
+    <div class="feat">
+      <p class="feat-title">Table / Cards / Raw</p>
+      <p class="feat-text">Dense data scanning with filters and search. Visual per-person cards. Raw parsed data inspection. Whatever lens you need.</p>
+    </div>
+  </div>
+</section>
+
+<!-- WORKFLOW -->
+<section class="section">
+  <p class="section-tag">How it works</p>
+  <h2 class="section-title">Three steps. Zero setup.</h2>
+  <p class="section-sub">No installation, no account, no config. Open the page and go.</p>
+
+  <div class="workflow">
+    <div class="wf-step">
+      <div class="wf-num">01</div>
+      <div>
+        <p class="wf-title">Drop your schedule</p>
+        <p class="wf-text">Drag an Excel or CSV roster export onto the page. The parser reads patterns, identifies names and dates, and builds the model automatically.</p>
+      </div>
+    </div>
+    <div class="wf-step">
+      <div class="wf-num">02</div>
+      <div>
+        <p class="wf-title">Explore and manage</p>
+        <p class="wf-text">Navigate by calendar, table, cards, or planner. Check coverage, review anomalies, record swaps, add notes, and plan future months.</p>
+      </div>
+    </div>
+    <div class="wf-step">
+      <div class="wf-num">03</div>
+      <div>
+        <p class="wf-title">Export and share</p>
+        <p class="wf-text">Generate styled Excel workbooks or image snapshots. Everything stays local — your data never touches a server.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <div class="cta-box">
+    <p class="section-tag">Ready?</p>
+    <h2 class="cta-title">Make your schedules work harder.</h2>
+    <p class="cta-text">One file. Runs offline. No data leaves your browser. Open Sync and drop a schedule to get started.</p>
+    <div class="cta-actions">
+      <a href="https://sync.theguide.club" class="hero-btn primary">Launch Sync</a>
+      <a href="https://mirrorflow.theguide.club" class="hero-btn ghost">MirrorFlow →</a>
+      <a href="https://sel.theguide.club" class="hero-btn ghost">← Back to Hub</a>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-brand">MirrorFlow <span>Sync</span></div>
+  <div>Part of <a href="https://sel.theguide.club">theguide.club</a></div>
+  <div>© 2026</div>
+</footer>
+
+<script>
+// CURSOR
+const cd=document.getElementById('cur-d'),cr=document.getElementById('cur-r');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cd.style.left=mx+'px';cd.style.top=my+'px'});
+(function ac(){rx+=(mx-rx)*.12;ry+=(my-ry)*.12;cr.style.left=rx+'px';cr.style.top=ry+'px';requestAnimationFrame(ac)})();
+
+// CARD SPOTLIGHT + TILT
+document.querySelectorAll('.feat,.hero-grid').forEach(c=>{
+  c.addEventListener('mousemove',e=>{
+    const r=c.getBoundingClientRect();
+    c.style.setProperty('--mx',((e.clientX-r.left)/r.width*100)+'%');
+    c.style.setProperty('--my',((e.clientY-r.top)/r.height*100)+'%');
+    c.style.setProperty('--gx',((e.clientX-r.left)/r.width*100)+'%');
+    c.style.setProperty('--gy',((e.clientY-r.top)/r.height*100)+'%');
+  });
+});
+document.querySelectorAll('.feat').forEach(c=>{
+  c.addEventListener('mousemove',e=>{
+    const r=c.getBoundingClientRect();
+    const x=(e.clientX-r.left)/r.width-.5;
+    const y=(e.clientY-r.top)/r.height-.5;
+    c.style.transform=`perspective(700px) rotateY(${x*5}deg) rotateX(${-y*5}deg) translateY(-3px)`;
+  });
+  c.addEventListener('mouseleave',()=>{c.style.transform=''});
+});
+
+// VIEW TAGS
+document.querySelectorAll('.view-tag').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.view-tag').forEach(v=>v.classList.remove('active'));
+    t.classList.add('active');
+  });
+});
+
+// COVERAGE HEATMAP
+(function(){
+  const strip=document.getElementById('covStrip');
+  if(!strip)return;
+  const days=28;
+  const coverage=[4,5,5,3,4,2,1,5,5,4,4,5,2,1,3,5,5,5,4,2,1,4,4,5,5,3,2,1];
+  const max=5;
+  for(let i=0;i<days;i++){
+    const d=document.createElement('div');
+    d.className='cov-day';
+    d.style.animationDelay=(i*.03)+'s';
+    const val=coverage[i];
+    const pct=(val/max)*100;
+    const fill=document.createElement('div');
+    fill.className='cov-fill';
+    let col;
+    if(val>=4)col='var(--green)';
+    else if(val===3)col='var(--accent)';
+    else if(val===2)col='var(--amber)';
+    else col='var(--rose)';
+    fill.style.cssText=`height:${pct}%;background:${col};opacity:.5;`;
+    d.appendChild(fill);
+    d.innerHTML+=`<span style="position:relative;z-index:1">${val}</span>`;
+    strip.appendChild(d);
+  }
+})();
+</script>
+</body>
+</html>
